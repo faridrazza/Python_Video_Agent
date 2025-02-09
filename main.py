@@ -22,17 +22,25 @@ class VideoCreationOrchestrator:
         # Initialize services
         self.script_generator = ScriptGenerator(config.OPENAI_API_KEY)
         self.audio_service = AudioService(config.ELEVEN_LABS_API_KEY)
-        self.storage_service = StorageService(config.GCS_CREDENTIALS_PATH)
-        self.image_service = ImageService(config.TOGETHER_AI_API_KEY, config.OPENAI_API_KEY)
+        self.storage_service = StorageService(
+            config.GCS_CLIENT_EMAIL,
+            config.GCS_PRIVATE_KEY
+        )
+        self.image_service = ImageService(
+            config.TOGETHER_AI_API_KEY,
+            config.OPENAI_API_KEY
+        )
         self.video_service = VideoService(config.STABILITY_AI_API_KEY)
         self.transcription_service = TranscriptionService()
         self.publishing_service = PublishingService(
-            config.GCS_CREDENTIALS_PATH,
-            config.INSTAGRAM_API_KEY
+            config.YOUTUBE_CLIENT_ID,
+            config.YOUTUBE_CLIENT_SECRET,
+            config.YOUTUBE_API_KEY
         )
         self.status_tracker = StatusTracker(
-            config.GCS_CREDENTIALS_PATH,
-            "your_spreadsheet_id"  # Replace with actual spreadsheet ID
+            config.GCS_CLIENT_EMAIL,
+            config.GCS_PRIVATE_KEY,
+            config.GOOGLE_SHEET_ID
         )
 
     async def create_and_publish_video(
@@ -141,12 +149,6 @@ class VideoCreationOrchestrator:
             )
             status['youtube_url'] = youtube_url
             
-            instagram_url = await self.publishing_service.upload_to_instagram(
-                final_video_path,
-                script_data['title']
-            )
-            status['instagram_url'] = instagram_url
-            
             # 8. Final Status Update
             status['creation_date'] = datetime.now().isoformat()
             status['notes'] = 'Successfully completed'
@@ -166,27 +168,23 @@ class VideoCreationOrchestrator:
 
 # Example usage
 async def main():
-    # Load configuration (you'll need to implement this)
-    config = APIConfig(
-        OPENAI_API_KEY="your_openai_key",
-        ELEVEN_LABS_API_KEY="your_eleven_labs_key",
-        TOGETHER_AI_API_KEY="your_together_ai_key",
-        STABILITY_AI_API_KEY="your_stability_ai_key",
-        GCS_CREDENTIALS_PATH="path_to_gcs_credentials",
-        YOUTUBE_API_KEY="your_youtube_key",
-        INSTAGRAM_API_KEY="your_instagram_key"
-    )
-    
-    orchestrator = VideoCreationOrchestrator(config)
-    
     try:
+        # Load and validate configuration
+        config = APIConfig()
+        config.validate()
+        
+        orchestrator = VideoCreationOrchestrator(config)
+        
         status = await orchestrator.create_and_publish_video(
-            topic="The Future of AI",
+            topic="The Partition of India -What Really Happened in 1947",
             format_type="educational",
             duration=30
         )
         print("Video creation completed successfully!")
         print("Status:", status)
+        
+    except ValueError as e:
+        print(f"Configuration Error: {str(e)}")
     except Exception as e:
         print(f"Error creating video: {str(e)}")
 

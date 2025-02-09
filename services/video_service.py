@@ -3,6 +3,7 @@ import time
 from typing import List, Dict
 import moviepy.editor as mp
 from moviepy.editor import VideoFileClip, AudioFileClip, TextClip, CompositeVideoClip
+from moviepy.video.tools.subtitles import SubtitlesClip
 
 class VideoService:
     def __init__(self, api_key: str):
@@ -13,22 +14,24 @@ class VideoService:
         }
         self.base_url = "https://api.stability.ai/v2beta/image-to-video"
 
-    async def generate_videos_from_images(self, image_files: List[bytes]) -> List[bytes]:
+    async def generate_videos_from_images(self, image_files: List[bytes], duration_per_clip: int = 5) -> List[bytes]:
         """Generate videos from images using Stability AI"""
         videos = []
         
         for image in image_files:
             try:
-                # Initialize video generation
                 response = requests.post(
                     f"{self.base_url}",
                     headers=self.headers,
-                    files={"image": image}
+                    json={
+                        "image": image,
+                        "motion_bucket_id": 127,  # Controls motion intensity
+                        "duration": duration_per_clip
+                    }
                 )
                 response.raise_for_status()
                 generation_id = response.json()["id"]
 
-                # Poll for completion
                 video_bytes = await self._poll_generation(generation_id)
                 videos.append(video_bytes)
 
@@ -66,39 +69,88 @@ class VideoService:
         self,
         video_files: List[str],
         audio_file: str,
-        transcript: str,
-        output_path: str
+        transcript: Dict[str, any],
+        output_path: str,
+        transition_duration: float = 0.5
     ) -> str:
-        """Assemble final video with audio and captions"""
+        """
+        Assemble final video with audio, transitions, and synchronized captions
+        """
         try:
-            # Load video clips
-            video_clips = [VideoFileClip(v) for v in video_files]
+            # 1. Load and process video clips
+            video_clips = []
+            for video_path in video_files:
+                clip = VideoFileClip(video_path)
+                # Add fade in/out transitions
+                clip = clip.fadein(transition_duration).fadeout(transition_duration)
+                video_clips.append(clip)
             
-            # Concatenate video clips
-            final_video = mp.concatenate_videoclips(video_clips)
+            # 2. Concatenate video clips with transitions
+            final_video = mp.concatenate_videoclips(
+                video_clips, 
+                method="compose",
+                transition=mp.VideoFileClip("crossfade", duration=transition_duration)
+            )
             
-            # Add audio
+            # 3. Process audio
             audio = AudioFileClip(audio_file)
+            
+            # 4. Adjust video duration to match audio if needed
+            if final_video.duration != audio.duration:
+                final_video = final_video.set_duration(audio.duration)
+            
+            # 5. Add audio to video
             final_video = final_video.set_audio(audio)
             
-            # Add captions
-            txt_clip = TextClip(
-                transcript, 
-                fontsize=24, 
-                color='white',
-                bg_color='black',
-                size=(final_video.w, None),
-                method='caption'
+            # 6. Process captions from transcript segments
+            subtitles = self._create_subtitles_from_transcript(
+                transcript["segments"],
+                final_video.size
             )
-            txt_clip = txt_clip.set_position(('center', 'bottom'))
             
-            # Composite video with captions
-            final = CompositeVideoClip([final_video, txt_clip])
+            # 7. Composite video with subtitles
+            final = CompositeVideoClip([
+                final_video,
+                subtitles.set_position(('center', 'bottom'))
+            ])
             
-            # Write final video
-            final.write_videofile(output_path, codec='libx264', audio_codec='aac')
+            # 8. Write final video with appropriate settings
+            final.write_videofile(
+                output_path,
+                codec='libx264',
+                audio_codec='aac',
+                fps=30,
+                threads=4,
+                preset='medium'
+            )
             
             return output_path
             
         except Exception as e:
-            raise Exception(f"Video assembly failed: {str(e)}") 
+            raise Exception(f"Video assembly failed: {str(e)}")
+
+    def _create_subtitles_from_transcript(
+        self,
+        segments: List[Dict],
+        video_size: tuple
+    ) -> SubtitlesClip:
+        """Create synchronized subtitles from transcript segments"""
+        subs = []
+        for segment in segments:
+            start = segment['start']
+            end = segment['end']
+            text = segment['text']
+            
+            txt_clip = TextClip(
+                text,
+                font='Arial',
+                fontsize=24,
+                color='white',
+                bg_color='black',
+                size=(video_size[0] * 0.8, None),
+                method='caption'
+            )
+            
+            subs.append(((start, end), txt_clip))
+        
+        return SubtitlesClip(subs) 

@@ -2,10 +2,19 @@ from google.cloud import storage
 from google.cloud.storage import Bucket, Blob
 import os
 from typing import Optional
+from google.oauth2 import service_account
+import json
 
 class StorageService:
-    def __init__(self, credentials_path: str):
-        self.client = storage.Client.from_service_account_json(credentials_path)
+    def __init__(self, client_email: str, private_key: str):
+        credentials = service_account.Credentials.from_service_account_info({
+            "type": "service_account",
+            "project_id": "your-project-id",  # You should add this to env vars too
+            "private_key": private_key.replace('\\n', '\n'),  # Handle newline chars
+            "client_email": client_email,
+            "token_uri": "https://oauth2.googleapis.com/token",
+        })
+        self.client = storage.Client(credentials=credentials)
         
     def upload_file(self, bucket_name: str, source_file_path: str, destination_blob_name: str) -> str:
         """
