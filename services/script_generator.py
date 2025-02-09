@@ -18,7 +18,7 @@ class ScriptGenerator:
             Dict containing script and metadata
         """
         try:
-            response = await self.client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a professional video script writer."},
@@ -26,10 +26,15 @@ class ScriptGenerator:
                 ]
             )
             
+            script_content = response.choices[0].message.content
+            
+            # Generate metadata
+            metadata = await self._generate_metadata(script_content)
+            
             return {
-                "title": topic,
-                "description": f"{format_type} video about {topic}",
-                "script": response.choices[0].message.content
+                "title": metadata["title"],
+                "description": metadata["description"],
+                "script": script_content
             }
             
         except Exception as e:
@@ -38,7 +43,7 @@ class ScriptGenerator:
     async def _generate_metadata(self, script: str) -> Dict[str, str]:
         """Generate video title and description based on the script"""
         try:
-            response = await self.client.chat.completions.create(
+            response = self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "Generate an engaging title and description for this video script."},

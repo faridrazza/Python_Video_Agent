@@ -177,7 +177,7 @@ async def main():
         
         status = await orchestrator.create_and_publish_video(
             topic="The Partition of India -What Really Happened in 1947",
-            format_type="educational",
+            format_type="The Partition of India -What Really Happened in 1947",
             duration=30
         )
         print("Video creation completed successfully!")
