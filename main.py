@@ -31,7 +31,7 @@ class VideoCreationOrchestrator:
             config.OPENAI_API_KEY
         )
         self.video_service = VideoService(config.STABILITY_AI_API_KEY)
-        self.transcription_service = TranscriptionService()
+        self.transcription_service = TranscriptionService(config.OPENAI_API_KEY)
         self.publishing_service = PublishingService(
             config.YOUTUBE_CLIENT_ID,
             config.YOUTUBE_CLIENT_SECRET,

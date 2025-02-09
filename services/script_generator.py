@@ -1,9 +1,9 @@
-import openai
+from openai import OpenAI
 from typing import Dict, Optional
 
 class ScriptGenerator:
     def __init__(self, api_key: str):
-        openai.api_key = api_key
+        self.client = OpenAI(api_key=api_key)
         
     async def generate_script(self, topic: str, format_type: str, duration: int) -> Dict[str, str]:
         """
@@ -17,33 +17,19 @@ class ScriptGenerator:
         Returns:
             Dict containing script and metadata
         """
-        prompt = f"""Create a {duration}-minute video script about {topic}.
-        Format: {format_type}
-        Include:
-        1. Introduction
-        2. Main content
-        3. Conclusion
-        4. Natural transitions
-        Also provide timestamps for each section."""
-        
         try:
-            response = await openai.ChatCompletion.acreate(
+            response = await self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are a professional video script writer."},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": f"Write a {duration} minute {format_type} video script about {topic}"}
                 ]
             )
             
-            script = response.choices[0].message.content
-            
-            # Generate title and description
-            metadata = await self._generate_metadata(script)
-            
             return {
-                "script": script,
-                "title": metadata["title"],
-                "description": metadata["description"]
+                "title": topic,
+                "description": f"{format_type} video about {topic}",
+                "script": response.choices[0].message.content
             }
             
         except Exception as e:
@@ -52,7 +38,7 @@ class ScriptGenerator:
     async def _generate_metadata(self, script: str) -> Dict[str, str]:
         """Generate video title and description based on the script"""
         try:
-            response = await openai.ChatCompletion.acreate(
+            response = await self.client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "Generate an engaging title and description for this video script."},

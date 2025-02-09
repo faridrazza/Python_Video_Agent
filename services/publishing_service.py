@@ -20,17 +20,20 @@ class PublishingService:
                     "installed": {
                         "client_id": self.client_id,
                         "client_secret": self.client_secret,
-                        "redirect_uris": ["http://localhost:8080/"],
+                        "redirect_uris": ["http://localhost:8080"],
                         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                         "token_uri": "https://oauth2.googleapis.com/token"
                     }
                 },
                 ['https://www.googleapis.com/auth/youtube.upload']
             )
-            credentials = flow.run_local_server(port=8080)
+            credentials = flow.run_local_server(
+                port=8080,
+                success_message="Authentication successful! You can close this window."
+            )
             return build('youtube', 'v3', credentials=credentials)
         except Exception as e:
-            raise Exception(f"YouTube setup failed: {str(e)}")
+            raise Exception(f"YouTube service setup failed: {str(e)}")
 
     async def upload_to_youtube(
         self,
